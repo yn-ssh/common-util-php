@@ -40,7 +40,10 @@
         "phpunit/phpunit": "^10.0"
     },
     "suggest": {
-        "ext-gd": "商米云打印图片处理需要GD扩展"
+        "ext-gd": "商米云打印图片处理需要GD扩展",
+        "ext-redis": "IdGenerator 需要 Redis 扩展用于原子自增",
+        "webman/redis": "IdGenerator 使用 support\\Redis 访问 Redis",
+        "webman/database": "IdGenerator 使用 support\\Db 作为 MySQL 兜底"
     },
     "autoload": {
         "psr-4": {
