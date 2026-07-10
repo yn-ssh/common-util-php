@@ -3,7 +3,7 @@
  * @Author SSH
  * @Email 694711507@qq.com
  * @Date 2026/7/14
- * @Description 唯一号生成器（Redis原子自增 + MySQL兜底）
+ * @Description 唯一号生成器（Redis原子自增 + MySQL兜底 + 协程异步回写）
  *
  * 格式: YYYYMMDD + 类型码 + 当日序号(补零)
  * 示例: 202607140100000001 (18位, 类型01=用户, 序号1)
@@ -162,6 +162,8 @@ class IdGenerator
     {
         $seq = self::getSequenceFromRedis($typeCode, $dateStr);
         if ($seq !== null) {
+            // Redis 生成成功，异步回写 MySQL 保持同步
+            self::asyncSyncToMysql($typeCode, $dateStr, $seq);
             return $seq;
         }
 
@@ -205,6 +207,42 @@ class IdGenerator
             ]);
             return null;
         }
+    }
+
+    /**
+     * 异步回写 MySQL，保持 sys_id_sequence 与 Redis 同步
+     *
+     * 优先使用 Swoole 协程，不阻塞主请求；
+     * 无 Swoole 环境时降级为同步写入（单次 upsert 开销很小）。
+     */
+    private static function asyncSyncToMysql(string $typeCode, string $dateStr, int $seq): void
+    {
+        $callback = static function () use ($typeCode, $dateStr, $seq): void {
+            try {
+                Db::statement(
+                    "INSERT INTO sys_id_sequence (type_code, biz_date, current_seq)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE current_seq = GREATEST(current_seq, VALUES(current_seq))",
+                    [$typeCode, $dateStr, $seq]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('IdGenerator: MySQL 异步回写失败（不影响业务）', [
+                    'error'     => $e->getMessage(),
+                    'type_code' => $typeCode,
+                    'date'      => $dateStr,
+                    'seq'       => $seq,
+                ]);
+            }
+        };
+
+        // 优先 Swoole 协程
+        if (class_exists(\Swoole\Coroutine::class)) {
+            \Swoole\Coroutine::create($callback);
+            return;
+        }
+
+        // 降级：同步写入（单次 upsert 开销极小）
+        $callback();
     }
 
     /**
