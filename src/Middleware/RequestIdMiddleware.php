@@ -9,11 +9,11 @@ use Webman\Http\Response;
 use Webman\MiddlewareInterface;
 
 /**
- * 请求追踪 ID 中间件
+ * 请求追踪中间件
  *
  * 从 X-Request-Id 请求头读取（支持网关透传），无则生成唯一 ID。
- * 将 ID 注入到 RequestIdProcessor，并在响应头返回。
- * 请求结束后重置 RequestIdProcessor 和 UserIdProcessor。
+ * 同时注入 client_ip 到 RequestIdProcessor。
+ * 请求结束后重置所有请求级静态变量。
  */
 class RequestIdMiddleware implements MiddlewareInterface
 {
@@ -25,6 +25,7 @@ class RequestIdMiddleware implements MiddlewareInterface
         }
 
         RequestIdProcessor::setRequestId($requestId);
+        RequestIdProcessor::setClientIp($request->getRealIp());
 
         /** @var Response $response */
         $response = $handler($request);
