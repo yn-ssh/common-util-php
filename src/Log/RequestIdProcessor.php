@@ -3,17 +3,20 @@
 namespace Ssh\CommonUtil\Log;
 
 /**
- * 请求上下文 Processor — 为每条日志注入 request_id / client_ip / app_id 字段
+ * 请求上下文 Processor — 为每条日志注入请求维度字段
  *
- * 由 RequestIdMiddleware 在请求入口设置 client_ip，
- * 由业务代码按需设置 app_id（登录/OAuth 等场景才有）。
+ * request_id / client_ip / client_ua / app_id
  *
  * Workerman 单 worker 单请求模型，静态变量在请求维度安全。
  */
 class RequestIdProcessor
 {
+    /** @var int User-Agent 最大截取长度 */
+    protected const MAX_UA_LENGTH = 256;
+
     protected static string $requestId = '-';
     protected static string $clientIp  = '-';
+    protected static string $clientUa  = '-';
     protected static string $appId     = '-';
 
     public static function setRequestId(string $id): void
@@ -36,6 +39,18 @@ class RequestIdProcessor
         return self::$clientIp;
     }
 
+    public static function setClientUa(string $ua): void
+    {
+        self::$clientUa = strlen($ua) > self::MAX_UA_LENGTH
+            ? substr($ua, 0, self::MAX_UA_LENGTH) . '...'
+            : $ua;
+    }
+
+    public static function getClientUa(): string
+    {
+        return self::$clientUa;
+    }
+
     public static function setAppId(string $appId): void
     {
         self::$appId = $appId;
@@ -50,6 +65,7 @@ class RequestIdProcessor
     {
         self::$requestId = '-';
         self::$clientIp  = '-';
+        self::$clientUa  = '-';
         self::$appId     = '-';
     }
 
@@ -57,6 +73,7 @@ class RequestIdProcessor
     {
         $record['extra']['request_id'] = self::$requestId;
         $record['extra']['client_ip']  = self::$clientIp;
+        $record['extra']['client_ua']  = self::$clientUa;
         $record['extra']['app_id']     = self::$appId;
         return $record;
     }
