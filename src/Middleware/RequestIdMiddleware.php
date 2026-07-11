@@ -7,13 +7,14 @@ use Ssh\CommonUtil\Log\UserIdProcessor;
 use Webman\Http\Request;
 use Webman\Http\Response;
 use Webman\MiddlewareInterface;
+use support\Log;
 
 /**
  * 请求追踪中间件
  *
- * 从 X-Request-Id 请求头读取（支持网关透传），无则生成唯一 ID。
- * 同时注入 client_ip / client_ua 到 RequestIdProcessor。
- * 请求结束后重置所有请求级静态变量。
+ * 1. 从 X-Request-Id 请求头读取（支持网关透传），无则生成唯一 ID
+ * 2. 注入 client_ip / client_ua 到 RequestIdProcessor
+ * 3. 请求结束后记录 HTTP 访问日志并重置所有请求级静态变量
  */
 class RequestIdMiddleware implements MiddlewareInterface
 {
@@ -28,8 +29,24 @@ class RequestIdMiddleware implements MiddlewareInterface
         RequestIdProcessor::setClientIp($request->getRealIp());
         RequestIdProcessor::setClientUa($request->header('user-agent', ''));
 
-        /** @var Response $response */
-        $response = $handler($request);
+        $method   = $request->method();
+        $uri      = $request->path();
+        $startMs  = microtime(true);
+
+        try {
+            /** @var Response $response */
+            $response = $handler($request);
+        } finally {
+            $durationMs = round((microtime(true) - $startMs) * 1000);
+            $status     = isset($response) ? $response->getStatusCode() : 500;
+
+            Log::info('HTTP ' . $status . ' ' . $method . ' ' . $uri, [
+                'method'      => $method,
+                'uri'         => $uri,
+                'status'      => $status,
+                'duration_ms' => $durationMs,
+            ]);
+        }
 
         $response->header('X-Request-Id', $requestId);
 
