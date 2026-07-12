@@ -21,12 +21,14 @@ class IdGenerator
     public const TYPE_USER   = '01';
     public const TYPE_ORG    = '02';
     public const TYPE_APP    = '03';
+    public const TYPE_DEVICE = '04';
 
     /** 人类可读名 → 类型码 */
     private const TYPE_MAP = [
-        'user' => self::TYPE_USER,
-        'org'  => self::TYPE_ORG,
-        'app'  => self::TYPE_APP,
+        'user'   => self::TYPE_USER,
+        'org'    => self::TYPE_ORG,
+        'app'    => self::TYPE_APP,
+        'device' => self::TYPE_DEVICE,
     ];
 
     /** 默认总长度 */
